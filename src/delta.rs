@@ -29,6 +29,7 @@ pub enum State {
 #[derive(Debug, PartialEq)]
 pub enum Source {
     GitDiff,     // Coming from a `git diff` command
+    SvnDiff,     // Coming from an `svn diff` command
     DiffUnified, // Coming from a `diff -u` command
     Unknown,
 }
@@ -87,7 +88,7 @@ where
         if source == Source::Unknown {
             source = detect_source(&line);
         }
-        if line.starts_with("commit ") {
+        if line.starts_with("commit ") || (source == Source::SvnDiff && line == "-".repeat(72)) {
             painter.paint_buffered_minus_and_plus_lines();
             state = State::CommitMeta;
             if should_handle(&state, config) {
@@ -95,7 +96,7 @@ where
                 handle_commit_meta_header_line(&mut painter, &line, &raw_line, config)?;
                 continue;
             }
-        } else if line.starts_with("diff ") {
+        } else if line.starts_with("diff ") || (source == Source::SvnDiff && line.starts_with("Index: ")) {
             painter.paint_buffered_minus_and_plus_lines();
             state = State::FileMeta;
             handled_file_meta_header_line_file_pair = None;
@@ -211,6 +212,8 @@ fn detect_source(line: &str) -> Source {
         || line.starts_with("Only in ")
     {
         Source::DiffUnified
+    } else if line == "-".repeat(72) ||  line.starts_with("Index: ") {
+        Source::SvnDiff
     } else {
         Source::Unknown
     }
